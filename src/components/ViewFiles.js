@@ -6,9 +6,19 @@ import { ethers } from "ethers";
 import axios from "axios";
 import { useRouter } from 'next/router'
 import Web3Modal from "web3modal";
+// Import the libraries and load the environment variables.
+const { SDK, Auth, TEMPLATES, Metadata } = require('@infura/sdk') ;
+require('dotenv').config()
 
-import fileNFT from "../../artifacts/contracts/autorecover.sol/FileNFT.json";
-import { fileShareAddress } from "../../config";
+import { fireSideAddress } from "../../config";
+
+// Create Auth object
+const auth = new Auth({
+  projectId: process.env.NEXT_PUBLIC_INFURA_API_KEY,
+  secretId: process.env.NEXT_PUBLIC_INFURA_API_KEY_SECRET,
+  privateKey: process.env.NEXT_PUBLIC_WALLET_PRIVATE_KEY,
+  chainId: 80001,
+});
 
 export default function ViewFiles() {
   const router = useRouter();
@@ -18,29 +28,37 @@ export default function ViewFiles() {
     loadfileNFT();
   }, []);
 
-  // const rpcUrl = "https://matic-mumbai.chainstacklabs.com";
-  // const rpcUrl = "http://localhost:8545";
+
 
   async function loadfileNFT() {
-    const web3Modal = new Web3Modal({
-      network: 'mainnet',
-      cacheProvider: true,
-    })
-    const connection = await web3Modal.connect();
-    const provider = new ethers.providers.Web3Provider(connection);
-    const signer = provider.getSigner();
-    const contract = new ethers.Contract(fileShareAddress, fileNFT.abi, signer);
-    const data = await contract.fetchMyFiles();
-    /*
-    *  map over items returned from smart contract and format
-    *  them as well as fetch their token metadata
-    */
-    const items = await Promise.all(data.map(async i => {
-      const tokenUri = await contract.tokenURI(i.tokenId);
-      console.log("token Uri is ", tokenUri);
-      const httpUri = getIPFSGatewayURL(tokenUri);
-      console.log("Http Uri is ", httpUri);
-      const meta = await axios.get(httpUri);
+
+      // Instantiate SDK
+const sdk = new SDK(auth);
+const getCollectionsByWallet = async ()=> {
+const collectionNFT = await sdk.api.getNFTsForCollection({
+  contractAddress: fireSideAddress,
+});
+console.log('NFT Collection: \n', collectionNFT);
+  console.log('NFT Metadata: \n', collectionNFT.assets[0].metadata);
+  return collectionNFT;
+}
+
+async function getContractNFT() {
+    try {
+      await getCollectionsByWallet();
+      return collectionNFT;
+    } catch (error) {
+      console.log(error);
+    }
+};
+
+    const data = await getContractNFT();
+    console.log('data.map items Function ', data);
+    try {
+      const items = await axios.get(getContractNFT) 
+        console.log('data.map items Function ', items);
+      const meta = await axios.get(getContractNFT);
+      console.log('axios get Function ', meta);
 
       const item = {
         tokenId: i.tokenId.toNumber(),
@@ -51,12 +69,13 @@ export default function ViewFiles() {
         //vin: meta.data.properties.vin,
       };
       console.log("item returned is ", item);
-      
+      setNfts(items);
+      setLoadingState("loaded");
       return item;
-    }));
+    } catch (err) {
+      console.log(err);
+    }
 
-    setNfts(items);
-    setLoadingState("loaded");
   }
 
   const getIPFSGatewayURL = (ipfsURL) => {
@@ -64,6 +83,8 @@ export default function ViewFiles() {
     const ipfsGateWayURL = `https://${urlArray[2]}.ipfs.nftstorage.link/${urlArray[3]}`;
     return ipfsGateWayURL;
   };
+
+  
 
   async function share(nft) {
     console.log("item id clicked is", nft.tokenId);
@@ -74,22 +95,6 @@ export default function ViewFiles() {
       query: { id },
     });
     console.log('Prop result without {} is ', { id });
-
-    /**
-    const web3Modal = new Web3Modal();
-    const connection = await web3Modal.connect();
-    const provider = new ethers.providers.Web3Provider(connection);
-    const signer = provider.getSigner();
-    const contract = new ethers.Contract(fileShareAddress, fileNFT.abi, signer);
-
-    const transaction = await contract.createFileShare(nft.tokenId);
-    await transaction.wait();
-    console.log("fileNFT Share transaction completed ");
-    const token = nft.tokenId;
-    console.log("token id is ", token);
-    loadfileNFT();
-     */
-    //navigate("/view", { state: token });
   }
 
   async function CarDetails() {
@@ -109,7 +114,7 @@ export default function ViewFiles() {
   return (
     <Box as="section"  sx={styles.section}>
       <div className="bg-blue-100 text-4xl text-center text-black font-bold pt-10">
-        <h1>Available Bounty</h1>
+        <h1>Unified Asset Marketplace</h1>
       </div>
     <div className="flex justify-center bg-blue-100 mb-12">
 
